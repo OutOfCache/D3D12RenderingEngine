@@ -90,17 +90,63 @@ void SceneGraphViewerApp::onDraw()
   const auto rtvHandle   = getRTVHandle();
   const auto dsvHandle   = getDSVHandle();
 
-  commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+  commandList->OMSetRenderTargets(numDeferredRTV, m_offscreenTarget_CPU_RTV, TRUE, &dsvHandle);
+  f32v4 clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-  const float clearColor[] = {m_uiData.m_backgroundColor.x, m_uiData.m_backgroundColor.y, m_uiData.m_backgroundColor.z,
-                              1.0f};
-  commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+  for (ui8 i = 0; i < numDeferredRTV; ++i)
+  {
+    commandList->ClearRenderTargetView(m_offscreenTarget_CPU_RTV[i], &clearColor.x, 0, nullptr);
+  }
   commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
   commandList->RSSetViewports(1, &getViewport());
   commandList->RSSetScissorRects(1, &getRectScissor());
 
   drawScene(commandList);
+
+  // Resolve Pass
+  const auto& outputRTV = m_offscreenTargets[0];
+  {
+    CD3DX12_RESOURCE_BARRIER toUAV = CD3DX12_RESOURCE_BARRIER::Transition(
+        outputRTV.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    commandList->ResourceBarrier(1, &toUAV);
+  }
+
+  commandList->SetPipelineState(m_computePipelineState.Get());
+  commandList->SetComputeRootSignature(m_computeRootSignature.Get());
+  commandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
+  commandList->SetComputeRootDescriptorTable(0, m_offscreenTarget_GPU_UAV[0]);
+
+  commandList->SetComputeRoot32BitConstant(1, getWidth(), 0);
+  commandList->SetComputeRoot32BitConstant(1, getHeight(), 1);
+
+  const ui32v3 threadGroupSize(16, 16, 1);
+  commandList->Dispatch(ui32(ceilf(getWidth() / f32(threadGroupSize.x))),
+                        ui32(ceilf(getHeight() / f32(threadGroupSize.y))), 1);
+
+  {
+    CD3DX12_RESOURCE_BARRIER barriers[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(outputRTV.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                             D3D12_RESOURCE_STATE_COPY_SOURCE),
+        CD3DX12_RESOURCE_BARRIER::Transition(getRenderTarget().Get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                             D3D12_RESOURCE_STATE_COPY_DEST)};
+
+    commandList->ResourceBarrier(_countof(barriers), barriers);
+  }
+
+  commandList->CopyResource(getRenderTarget().Get(), outputRTV.Get());
+  {
+    CD3DX12_RESOURCE_BARRIER toRenderTarget[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(outputRTV.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+                                             D3D12_RESOURCE_STATE_RENDER_TARGET),
+        CD3DX12_RESOURCE_BARRIER::Transition(getRenderTarget().Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                                             D3D12_RESOURCE_STATE_RENDER_TARGET),
+    };
+
+    commandList->ResourceBarrier(_countof(toRenderTarget), toRenderTarget);
+  }
+
+  commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
   // now draw bounding box
   if (m_uiData.m_showBoundingBox)
@@ -236,7 +282,10 @@ void SceneGraphViewerApp::drawScene(const ComPtr<ID3D12GraphicsCommandList>& cmd
   const auto cb           = m_constantBuffers[getFrameIndex()].getResource()->GetGPUVirtualAddress();
   const auto cameraMatrix = m_examinerController.getTransformationMatrix();
 
-  cmdLst->SetPipelineState(m_pipelineState.Get());
+  cmdLst->SetPipelineState(m_deferredPipelineState.Get());
+
+  cmdLst->RSSetViewports(1, &getViewport());
+  cmdLst->RSSetScissorRects(1, &getRectScissor());
 
   cmdLst->SetGraphicsRootSignature(m_rootSignature.Get());
   cmdLst->SetGraphicsRootConstantBufferView(0, cb);
