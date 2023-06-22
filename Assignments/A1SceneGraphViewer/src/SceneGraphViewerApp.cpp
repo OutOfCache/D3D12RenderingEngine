@@ -20,10 +20,15 @@ SceneGraphViewerApp::SceneGraphViewerApp(const DX12AppConfig config, const std::
 {
   m_examinerController.setTranslationVector(f32v3(0, -0.25f, 1.5));
   m_shader = HLSLProgram(L"../../../Assignments/A1SceneGraphViewer/Shaders/TriangleMesh.hlsl", "VS_main", "PS_main");
+  m_deferredShader =
+      HLSLProgram(L"../../../Assignments/A1SceneGraphViewer/Shaders/TriangleMesh.hlsl", "VS_main", "PS_deferred");
+  m_computeShader =
+      HLSLShader(L"../../../Assignments/A1SceneGraphViewer/Shaders/TriangleMesh.hlsl", "CS_lighting", "cs_5_1");
   createRootSignature();
   createComputeRootSignature();
   createSceneConstantBuffer();
   createPipeline();
+  createComputePipeline();
   createPipelineBoundingBox();
 
   {
@@ -178,6 +183,15 @@ void SceneGraphViewerApp::createComputeRootSignature()
                                    IID_PPV_ARGS(&m_computeRootSignature));
 }
 
+void SceneGraphViewerApp::createComputePipeline()
+{
+  D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+  psoDesc.pRootSignature                    = m_computeRootSignature.Get();
+  psoDesc.CS                                = CD3DX12_SHADER_BYTECODE(m_computeShader.getShader().Get());
+  psoDesc.Flags                             = D3D12_PIPELINE_STATE_FLAG_NONE;
+  throwIfFailed(getDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&m_computePipelineState)));
+}
+
 void SceneGraphViewerApp::createPipeline()
 {
   waitForGPU();
@@ -199,10 +213,20 @@ void SceneGraphViewerApp::createPipeline()
   psoDesc.DepthStencilState.StencilEnable    = FALSE;
   psoDesc.SampleMask                         = UINT_MAX;
   psoDesc.PrimitiveTopologyType              = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-  psoDesc.NumRenderTargets                   = 1;
+  psoDesc.NumRenderTargets                   = numDeferredRTV;
   psoDesc.RTVFormats[0]                      = getDX12AppConfig().renderTargetFormat;
-  psoDesc.SampleDesc.Count                   = 1;
+  psoDesc.SampleDesc.Count = 1;
   throwIfFailed(getDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
+
+  psoDesc.VS               = CD3DX12_SHADER_BYTECODE(m_deferredShader.getVertexShader().Get());
+  psoDesc.PS               = CD3DX12_SHADER_BYTECODE(m_deferredShader.getPixelShader().Get());
+  psoDesc.NumRenderTargets = numDeferredRTV;
+  psoDesc.RTVFormats[0]    = m_rtvFormat[0];
+  psoDesc.RTVFormats[1]    = m_rtvFormat[1];
+  psoDesc.RTVFormats[2]    = m_rtvFormat[2];
+  psoDesc.RTVFormats[3]    = m_rtvFormat[3];
+  psoDesc.SampleDesc.Count = 1;
+  throwIfFailed(getDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_deferredPipelineState)));
 }
 
 void SceneGraphViewerApp::drawScene(const ComPtr<ID3D12GraphicsCommandList>& cmdLst)

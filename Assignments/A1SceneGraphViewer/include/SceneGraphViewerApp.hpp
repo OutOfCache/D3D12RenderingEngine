@@ -40,6 +40,8 @@ private:
   /// </summary>
   void createComputeRootSignature();
 
+  void createComputePipeline();
+
   /// <summary>
   /// Creates the pipeline
   /// </summary>
@@ -81,6 +83,8 @@ private:
   };
 
   ComPtr<ID3D12PipelineState>      m_pipelineState;
+  ComPtr<ID3D12PipelineState>      m_deferredPipelineState;
+  ComPtr<ID3D12PipelineState>      m_computePipelineState;
   ComPtr<ID3D12PipelineState>      m_pipelineStateBoundingBox;
   ComPtr<ID3D12RootSignature>      m_rootSignature;
   ComPtr<ID3D12RootSignature>      m_computeRootSignature;
@@ -103,6 +107,8 @@ private:
   std::vector<ConstantBufferD3D12> m_constantBuffers_Mesh;
   gims::ExaminerController         m_examinerController;
   gims::HLSLProgram                m_shader;
+  gims::HLSLProgram                m_deferredShader;
+  gims::HLSLShader                 m_computeShader;
   Scene                            m_scene;
   UiData                           m_uiData;
 };
