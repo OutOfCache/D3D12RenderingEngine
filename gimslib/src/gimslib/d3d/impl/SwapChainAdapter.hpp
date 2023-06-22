@@ -21,7 +21,7 @@ public:
 
   ~SwapChainAdapter();
 
-  void resize(ui32 width, ui32 height, DXGI_FORMAT renderTargetFormat, DXGI_FORMAT depthBufferFormat);
+  bool resize(ui32 width, ui32 height, DXGI_FORMAT renderTargetFormat, DXGI_FORMAT depthBufferFormat);
   void waitForGPU();
   void nextFrame(bool useVSync);
 

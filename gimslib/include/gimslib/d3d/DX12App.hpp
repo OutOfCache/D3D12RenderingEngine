@@ -50,6 +50,7 @@ public:
 
   virtual void onDraw();
   virtual void onDrawUI();
+  virtual void onResize();
 
   ui32  getFrameIndex() const;
   f32v2 getNormalizedMouseCoordinates() const;
@@ -59,6 +60,7 @@ public:
   const ComPtr<ID3D12Device>&              getDevice() const;
   const ComPtr<ID3D12CommandQueue>&        getCommandQueue() const;
   const ComPtr<ID3D12GraphicsCommandList>& getCommandList() const;
+  const ComPtr<ID3D12CommandAllocator>&    getCommandAllocator() const;
   const ComPtr<ID3D12Resource>&            getRenderTarget() const;
   const ComPtr<ID3D12Resource>&            getDepthStencil() const;
   CD3DX12_CPU_DESCRIPTOR_HANDLE            getRTVHandle();

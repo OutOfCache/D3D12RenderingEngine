@@ -25,7 +25,7 @@ UploadHelper::~UploadHelper()
 {
 }
 
-void UploadHelper::uploadBuffer(void const* const src, ComPtr<ID3D12Resource>& dst, size_t size,
+void UploadHelper::uploadBuffer(const void* const src, ComPtr<ID3D12Resource>& dst, size_t size,
                                 const ComPtr<ID3D12CommandQueue>& commandQueue)
 {
   void* cpuMappedUploadBuffer = nullptr;
@@ -42,8 +42,8 @@ void UploadHelper::uploadBuffer(void const* const src, ComPtr<ID3D12Resource>& d
   executeUploadSync(commandQueue);
 }
 
-void UploadHelper::uploadTexture(void* imageData, ComPtr<ID3D12Resource> texture, i32 textureWidth, i32 textureHeight,
-                                 const ComPtr<ID3D12CommandQueue>& commandQueue)
+void UploadHelper::uploadTexture(const void* const imageData, ComPtr<ID3D12Resource> texture, i32 textureWidth,
+                                 i32 textureHeight, const ComPtr<ID3D12CommandQueue>& commandQueue)
 {
   D3D12_SUBRESOURCE_DATA textureData = {};
   textureData.pData                  = imageData;
@@ -57,7 +57,34 @@ void UploadHelper::uploadTexture(void* imageData, ComPtr<ID3D12Resource> texture
   executeUploadSync(commandQueue);
 }
 
-void UploadHelper::uploadConstantBuffer(void const* const src, const ComPtr<ID3D12Resource>& dst, size_t size)
+void UploadHelper::uploadDefaultBuffer(const void* const src, ComPtr<ID3D12Resource>& dst, size_t size,
+                                       const ComPtr<ID3D12CommandQueue>& commandQueue)
+{
+  void* cpuMappedUploadBuffer = nullptr;
+  throwIfFailed(m_uploadBuffer->Map(0, nullptr, &cpuMappedUploadBuffer));
+  throwIfNullptr(cpuMappedUploadBuffer);
+  ::memcpy(cpuMappedUploadBuffer, src, size);
+  m_uploadBuffer->Unmap(0, nullptr);
+
+  D3D12_SUBRESOURCE_DATA subResourceData = {};
+  subResourceData.pData                  = src;
+  subResourceData.RowPitch               = size;
+  subResourceData.SlicePitch             = subResourceData.RowPitch;
+
+  const auto barrier0 =
+      CD3DX12_RESOURCE_BARRIER::Transition(dst.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
+  const auto barrier1 = CD3DX12_RESOURCE_BARRIER::Transition(dst.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                                                             D3D12_RESOURCE_STATE_GENERIC_READ);
+
+  m_uploadCommandList->ResourceBarrier(1, &barrier0);
+  UpdateSubresources<1>(m_uploadCommandList.Get(), dst.Get(), m_uploadBuffer.Get(), 0, 0, 1, &subResourceData);
+  m_uploadCommandList->ResourceBarrier(1, &barrier1);
+
+  m_uploadCommandList->Close();
+  executeUploadSync(commandQueue);
+}
+
+void UploadHelper::uploadConstantBuffer(const void* const src, const ComPtr<ID3D12Resource>& dst, size_t size)
 {
   void* mappedConstantBuffer;
   dst->Map(0, nullptr, (void**)&mappedConstantBuffer);
@@ -67,7 +94,7 @@ void UploadHelper::uploadConstantBuffer(void const* const src, const ComPtr<ID3D
 
 void UploadHelper::executeUploadSync(const ComPtr<ID3D12CommandQueue>& commandQueue)
 {
-  ComPtr<ID3D12Fence> uploadFence;  
+  ComPtr<ID3D12Fence> uploadFence;
   m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&uploadFence));
 
   ID3D12CommandList* commandLists[] = {m_uploadCommandList.Get()};

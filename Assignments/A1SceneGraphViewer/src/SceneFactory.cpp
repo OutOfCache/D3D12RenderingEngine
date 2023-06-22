@@ -121,6 +121,7 @@ Scene SceneGraphFactory::createFromAssImpScene(const std::filesystem::path      
                          aiProcess_FindInvalidData | aiProcess_FindDegenerates;
 
   Assimp::Importer imp;
+  imp.SetPropertyBool(AI_CONFIG_PP_FD_REMOVE, true);
   auto             inputScene = imp.ReadFile(absolutePath.string(), arguments);
   if (!inputScene)
   {

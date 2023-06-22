@@ -212,13 +212,13 @@ const ComPtr<ID3D12Resource>& SwapChainAdapter::getRenderTarget() const
   return m_renderTargets[m_frameIndex];
 }
 
-void SwapChainAdapter::resize(ui32 width, ui32 height, DXGI_FORMAT renderTargetFormat, DXGI_FORMAT depthBufferFormat)
+bool SwapChainAdapter::resize(ui32 width, ui32 height, DXGI_FORMAT renderTargetFormat, DXGI_FORMAT depthBufferFormat)
 {
   if (m_swapChain)
   {
     if ((width == getWidth() && height == getHeight()))
     {
-      return;
+      return false;
     }
 
     waitForGPU();
@@ -240,6 +240,7 @@ void SwapChainAdapter::resize(ui32 width, ui32 height, DXGI_FORMAT renderTargetF
   m_depthStencil  = createDepthStencil(m_device, m_dsvDescriptorHeap, width, height, depthBufferFormat);
   m_viewport      = {0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height), 0.0f, 1.0f};
   m_rectScissor   = {0, 0, static_cast<i32>(width), static_cast<i32>(height)};
+  return true;
 }
 
 } // namespace impl

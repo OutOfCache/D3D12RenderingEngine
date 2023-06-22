@@ -119,20 +119,25 @@ ComPtr<IDXGIFactory4> createDXGIFactory(bool enableDebug)
   return result;
 }
 
-ComPtr<IDXGIAdapter1> GetHardwareAdapter(IDXGIFactory1* pFactory, bool requestHighPerformance,
-                                         D3D_FEATURE_LEVEL d3d_featureLevel)
+ComPtr<IDXGIAdapter1> GetHardwareAdapter(IDXGIFactory1* pFactory, D3D_FEATURE_LEVEL d3d_featureLevel)
 {
-  auto pref = requestHighPerformance == true ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE : DXGI_GPU_PREFERENCE_UNSPECIFIED;
   ComPtr<IDXGIAdapter1> adapter;
   ComPtr<IDXGIFactory6> factory6;
-  DXGI_ADAPTER_DESC1    desc;
   if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6))))
   {
-    for (ui32 i = 0; SUCCEEDED(factory6->EnumAdapterByGpuPreference(i, pref, IID_PPV_ARGS(&adapter))); i++)
+    for (ui32 i = 0; SUCCEEDED(
+             factory6->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)));
+         i++)
     {
+      DXGI_ADAPTER_DESC1 desc;
       adapter->GetDesc1(&desc);
-      if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
-          SUCCEEDED(D3D12CreateDevice(adapter.Get(), d3d_featureLevel, _uuidof(ID3D12Device), nullptr)))
+      auto isSoftware = desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE;
+
+      if (isSoftware)
+      {
+        continue;
+      }
+      if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), d3d_featureLevel, _uuidof(ID3D12Device), nullptr)))
       {
         break;
       }
@@ -143,9 +148,14 @@ ComPtr<IDXGIAdapter1> GetHardwareAdapter(IDXGIFactory1* pFactory, bool requestHi
   {
     for (ui32 i = 0; SUCCEEDED(pFactory->EnumAdapters1(i, &adapter)); i++)
     {
+      DXGI_ADAPTER_DESC1 desc;
       adapter->GetDesc1(&desc);
-      if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
-          SUCCEEDED(D3D12CreateDevice(adapter.Get(), d3d_featureLevel, _uuidof(ID3D12Device), nullptr)))
+      auto isSoftware = desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE;
+      if (isSoftware)
+      {
+        continue;
+      }
+      if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), d3d_featureLevel, _uuidof(ID3D12Device), nullptr)))
       {
         break;
       }
@@ -159,7 +169,7 @@ ComPtr<ID3D12Device> createDevice(bool debug, D3D_FEATURE_LEVEL d3d_featureLevel
   ComPtr<ID3D12Device> device;
 
   ComPtr<IDXGIInfoQueue> dxgiInfoQueue   = createDXGIInfoQueue(debug);
-  ComPtr<IDXGIAdapter1>  hardwareAdapter = GetHardwareAdapter(factory.Get(), true, d3d_featureLevel);
+  ComPtr<IDXGIAdapter1>  hardwareAdapter = GetHardwareAdapter(factory.Get(), d3d_featureLevel);
 
   throwIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), d3d_featureLevel, IID_PPV_ARGS(&device)));
 
@@ -213,7 +223,7 @@ namespace gims
 {
 DX12App::DX12App(const DX12AppConfig config)
     : m_config(config)
-    , m_hwnd(::createWindow(m_config.title, m_config.width, m_config.height, this))
+    , m_hwnd(createWindow(m_config.title, m_config.width, m_config.height, this))
     , m_factory(createDXGIFactory(m_config.debug))
     , m_device(createDevice(m_config.debug, m_config.d3d_featureLevel, m_factory))
     , m_commandQueue(createCommandQueue(m_device))
@@ -276,6 +286,11 @@ const ComPtr<ID3D12GraphicsCommandList>& DX12App::getCommandList() const
   return m_commandLists[m_swapChainAdapter->getFrameIndex()];
 }
 
+const ComPtr<ID3D12CommandAllocator>& DX12App::getCommandAllocator() const
+{
+  return m_commandAllocators[m_swapChainAdapter->getFrameIndex()];
+}
+
 const ComPtr<ID3D12Resource>& DX12App::getRenderTarget() const
 {
   return m_swapChainAdapter->getRenderTarget();
@@ -319,10 +334,15 @@ void DX12App::onDrawUI()
 {
 }
 
+void DX12App::onResize()
+{
+}
+
 void DX12App::onDrawImpl()
 {
   const auto& commandList      = getCommandList();
-  const auto& commandAllocator = m_commandAllocators[m_swapChainAdapter->getFrameIndex()];
+  const auto& commandAllocator = getCommandAllocator();
+  ;
   throwIfFailed(commandAllocator->Reset());
   throwIfFailed(commandList->Reset(commandAllocator.Get(), nullptr));
 
@@ -393,8 +413,12 @@ LRESULT DX12App::windowProcHandler(UINT message, WPARAM wParam, LPARAM lParam)
       }
       else if (!m_windowState.sizemove)
       {
-        m_swapChainAdapter->resize(LOWORD(lParam), HIWORD(lParam), m_config.renderTargetFormat,
-                                   m_config.depthBufferFormat);
+        bool resized = m_swapChainAdapter->resize(LOWORD(lParam), HIWORD(lParam), m_config.renderTargetFormat,
+                                                  m_config.depthBufferFormat);
+        if (resized)
+        {
+          onResize();
+        }
       }
     }
     break;
@@ -411,8 +435,13 @@ LRESULT DX12App::windowProcHandler(UINT message, WPARAM wParam, LPARAM lParam)
       m_windowState.sizemove = false;
       RECT rc;
       GetClientRect(m_hwnd, &rc);
-      m_swapChainAdapter->resize(rc.right - rc.left, rc.bottom - rc.top, m_config.renderTargetFormat,
-                                 m_config.depthBufferFormat);
+      bool resized = m_swapChainAdapter->resize(rc.right - rc.left, rc.bottom - rc.top, m_config.renderTargetFormat,
+                                                m_config.depthBufferFormat);
+      if (resized)
+      {
+        onResize();
+      }
+
     }
     break;
 

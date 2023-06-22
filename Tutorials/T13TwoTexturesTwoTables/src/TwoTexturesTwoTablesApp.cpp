@@ -17,14 +17,13 @@ private:
 
   void createRootSignature()
   {
-    // Implement me: Two Decriptor and parameters
-    CD3DX12_ROOT_PARAMETER parameters[2] {};
-
-    CD3DX12_DESCRIPTOR_RANGE range1 {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2};
-    parameters[0].InitAsDescriptorTable(1, &range1);
-
-    CD3DX12_DESCRIPTOR_RANGE range2 {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5};
-    parameters[1].InitAsDescriptorTable(1, &range2);
+    CD3DX12_ROOT_PARAMETER   parameters[2] = {};
+    CD3DX12_DESCRIPTOR_RANGE range[2]  = {
+        {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2},
+        {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5},
+    };
+    parameters[0].InitAsDescriptorTable(1, &range[0]);
+    parameters[1].InitAsDescriptorTable(1, &range[1]);
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter                    = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -81,7 +80,6 @@ private:
   ComPtr<ID3D12Resource>       m_texture0;
   ComPtr<ID3D12Resource>       m_texture1;
   ComPtr<ID3D12DescriptorHeap> m_srv;
-  ui32                         m_srvDescriptorSize;
 
   ComPtr<ID3D12Resource> createTexture(char const* const pathToFile)
 
@@ -106,7 +104,7 @@ private:
 
     const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     throwIfFailed(getDevice()->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc,
-                                                       D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                       D3D12_RESOURCE_STATE_COMMON, nullptr,
                                                        IID_PPV_ARGS(&texture)));
 
     UploadHelper uploadHelper(getDevice(), GetRequiredIntermediateSize(texture.Get(), 0, 1));
@@ -117,16 +115,12 @@ private:
   ComPtr<ID3D12DescriptorHeap> createTextureSRV()
   {
     ComPtr<ID3D12DescriptorHeap> srv;
-
-    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    desc.NumDescriptors             = 2;
-    desc.NodeMask                   = 0;
-    desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    D3D12_DESCRIPTOR_HEAP_DESC   desc = {};
+    desc.Type                         = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    desc.NumDescriptors               = 2;
+    desc.NodeMask                     = 0;
+    desc.Flags                        = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     throwIfFailed(getDevice()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&srv)));
-
-    m_srvDescriptorSize = getDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
     return srv;
   }
 
@@ -139,11 +133,10 @@ private:
     shaderResourceViewDesc.Texture2D.MipLevels             = 1;
     shaderResourceViewDesc.Texture2D.MostDetailedMip       = 0;
     shaderResourceViewDesc.Texture2D.ResourceMinLODClamp   = 0.0f;
-
-    // Implement me: CreateShaderResourceView
-    CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srv->GetCPUDescriptorHandleForHeapStart(), offsetInDescriptors,
-                                            m_srvDescriptorSize);
-    getDevice()->CreateShaderResourceView(texture.Get(), &shaderResourceViewDesc, srvHandle);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(m_srv->GetCPUDescriptorHandleForHeapStart());
+    hDescriptor =
+        hDescriptor.Offset(offsetInDescriptors, getDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    getDevice()->CreateShaderResourceView(texture.Get(), &shaderResourceViewDesc, hDescriptor);
   }
 
 public:
@@ -152,11 +145,12 @@ public:
   {
     createRootSignature();
     createPipeline();
-    m_srv      = createTextureSRV();
+    m_srv = createTextureSRV();    
     m_texture0 = createTexture("../../../data/bunny.png");
     m_texture1 = createTexture("../../../data/checker-map_tho.png");
     addTextureToSRV(m_texture0, 0);
     addTextureToSRV(m_texture1, 1);
+    // see https://stackoverflow.com/questions/55628161/how-to-bind-textures-to-different-register-in-dx12
   }
 
   virtual void onDraw()
@@ -167,19 +161,13 @@ public:
     commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
     commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
-    // Implement me: Set Descriptor  Heap
     commandList->SetDescriptorHeaps(1, m_srv.GetAddressOf());
 
-    // Implement me: Bind the textures.
-    auto GPU_base_handle = m_srv->GetGPUDescriptorHandleForHeapStart();
-
-    commandList->SetGraphicsRootDescriptorTable(0, GPU_base_handle);
-
-    CD3DX12_GPU_DESCRIPTOR_HANDLE GPU_offset1_handle;
-    GPU_offset1_handle.InitOffsetted(GPU_base_handle, 1, m_srvDescriptorSize);
-
-    commandList->SetGraphicsRootDescriptorTable(1, GPU_offset1_handle);
-
+    CD3DX12_GPU_DESCRIPTOR_HANDLE tex(m_srv->GetGPUDescriptorHandleForHeapStart());
+    commandList->SetGraphicsRootDescriptorTable(0, tex);
+    tex.Offset(1, getDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    commandList->SetGraphicsRootDescriptorTable(1, tex);    
+    
     f32v4 clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
     commandList->ClearRenderTargetView(rtvHandle, &clearColor.x, 0, nullptr);
     commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);

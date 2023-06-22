@@ -433,3 +433,6 @@ $RECYCLE.BIN/
 .TemporaryItems
 ehthumbs.db
 Thumbs.db
+/Assignments/A0MeshViewerCorr/doc/*.pdf
+*.pdf
+*.zip

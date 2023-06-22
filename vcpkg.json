@@ -10,9 +10,10 @@
     {
       "name": "imgui"
     },
-    {
+	{
       "name": "assimp"
     }
+
   ],
   "features": {
     "tests": {

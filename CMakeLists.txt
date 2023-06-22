@@ -86,7 +86,6 @@ project_options(
 
 add_subdirectory(./Assignments)
 add_subdirectory(./Tutorials)
-add_subdirectory(./Project)
 add_subdirectory(./gimslib)
 
 
@@ -94,8 +93,7 @@ add_subdirectory(./gimslib)
 
 # Package the project
 package_project(
-  TARGETS
-  T0GLM
+  TARGETS  
   A0MeshViewer
   gimslib  
   project_options

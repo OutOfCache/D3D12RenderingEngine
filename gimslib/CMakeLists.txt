@@ -13,6 +13,7 @@ add_definitions(-DWIN32_LEAN_AND_MEAN)
 set(gimslib_PROJECT_SOURCE 
 						"./src/gimslib/d3d/DX12App.cpp"
 						"./src/gimslib/d3d/HLSLProgram.cpp"
+						"./src/gimslib/d3d/HLSLShader.cpp"
 						"./src/gimslib/d3d/DX12Util.cpp"
 						"./src/gimslib/d3d/UploadHelper.cpp"
 						"./src/gimslib/d3d/impl/ImGUIAdapter.cpp"
@@ -31,6 +32,7 @@ set(gimslib_PROJECT_SOURCE
                         "./include/gimslib/types.hpp"
 						"./include/gimslib/d3d/DX12App.hpp"						
 						"./include/gimslib/d3d/HLSLProgram.hpp"
+						"./include/gimslib/d3d/HLSLShader.hpp"
 						"./include/gimslib/d3d/DX12Util.hpp"
 						"./include/gimslib/d3d/UploadHelper.hpp"
 						"./include/gimslib/dbg/HrException.hpp"
