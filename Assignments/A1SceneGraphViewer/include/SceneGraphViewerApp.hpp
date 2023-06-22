@@ -35,6 +35,10 @@ private:
   /// Root signature connecting shader and GPU resources.
   /// </summary>
   void createRootSignature();
+  /// <summary>
+  /// Create root signature for deferred compute shader.
+  /// </summary>
+  void createComputeRootSignature();
 
   /// <summary>
   /// Creates the pipeline
@@ -75,6 +79,8 @@ private:
   ComPtr<ID3D12PipelineState>      m_pipelineState;
   ComPtr<ID3D12PipelineState>      m_pipelineStateBoundingBox;
   ComPtr<ID3D12RootSignature>      m_rootSignature;
+  ComPtr<ID3D12RootSignature>      m_computeRootSignature;
+  const static int                 numDeferredRTV = 4;
   std::vector<ConstantBufferD3D12> m_constantBuffers;
   std::vector<ConstantBufferD3D12> m_constantBuffers_Mesh;
   gims::ExaminerController         m_examinerController;

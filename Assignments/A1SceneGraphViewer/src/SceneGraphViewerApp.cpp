@@ -20,6 +20,7 @@ SceneGraphViewerApp::SceneGraphViewerApp(const DX12AppConfig config, const std::
   m_examinerController.setTranslationVector(f32v3(0, -0.25f, 1.5));
   m_shader = HLSLProgram(L"../../../Assignments/A1SceneGraphViewer/Shaders/TriangleMesh.hlsl", "VS_main", "PS_main");
   createRootSignature();
+  createComputeRootSignature();
   createSceneConstantBuffer();
   createPipeline();
   createPipelineBoundingBox();
@@ -119,6 +120,26 @@ void SceneGraphViewerApp::createRootSignature()
 
   getDevice()->CreateRootSignature(0, rootBlob->GetBufferPointer(), rootBlob->GetBufferSize(),
                                    IID_PPV_ARGS(&m_rootSignature));
+}
+
+void SceneGraphViewerApp::createComputeRootSignature()
+{
+  CD3DX12_ROOT_PARAMETER parameter[2] = {};
+
+  parameter[1].InitAsConstants(3, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
+  CD3DX12_DESCRIPTOR_RANGE uavTable;
+  uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, numDeferredRTV, 0);
+  parameter[0].InitAsDescriptorTable(1, &uavTable);
+
+  CD3DX12_ROOT_SIGNATURE_DESC descRootSignature;
+  descRootSignature.Init(_countof(parameter), parameter, 0, nullptr,
+                         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+  ComPtr<ID3DBlob> rootBlob, errorBlob;
+  D3D12SerializeRootSignature(&descRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &rootBlob, &errorBlob);
+
+  getDevice()->CreateRootSignature(0, rootBlob->GetBufferPointer(), rootBlob->GetBufferSize(),
+                                   IID_PPV_ARGS(&m_computeRootSignature));
 }
 
 void SceneGraphViewerApp::createPipeline()
