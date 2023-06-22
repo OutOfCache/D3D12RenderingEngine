@@ -80,6 +80,9 @@ private:
   {
     f32v3 m_backgroundColor = f32v3(0.25f, 0.25f, 0.25f);
     bool  m_showBoundingBox = false;
+    
+    ui32        finalRTV = 4;
+    const char* names[5]   = {"Emissive", "Albedo", "Positions", "Normals (absolute)", "Final lighting"};
   };
 
   ComPtr<ID3D12PipelineState>      m_pipelineState;

@@ -129,6 +129,7 @@ void SceneGraphViewerApp::onDraw()
 
   commandList->SetComputeRoot32BitConstant(1, getWidth(), offset++);
   commandList->SetComputeRoot32BitConstant(1, getHeight(), offset++);
+  commandList->SetComputeRoot32BitConstant(1, m_uiData.finalRTV, offset++);
 
   const ui32v3 threadGroupSize(16, 16, 1);
   commandList->Dispatch(ui32(ceilf(getWidth() / f32(threadGroupSize.x))),
@@ -169,6 +170,8 @@ void SceneGraphViewerApp::onDrawUI()
   ImGui::Begin("Configuration", nullptr, imGuiFlags);
   ImGui::ColorEdit3("Background Color", &m_uiData.m_backgroundColor[0]);
   ImGui::Checkbox("Show Bounding Boxes", &m_uiData.m_showBoundingBox);
+  ImGui::Text("Select Render Target to view: \n", 1.0f / ImGui::GetIO().Framerate * 1000.0f);
+  ImGui::ListBox("##", (int*)&m_uiData.finalRTV, m_uiData.names, _countof(m_uiData.names));
   ImGui::End();
 }
 
@@ -218,7 +221,7 @@ void SceneGraphViewerApp::createComputeRootSignature()
 {
   CD3DX12_ROOT_PARAMETER parameter[2] = {};
 
-  parameter[1].InitAsConstants(6, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
+  parameter[1].InitAsConstants(7, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
   CD3DX12_DESCRIPTOR_RANGE uavTable;
   uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, numDeferredRTV, 0);
   parameter[0].InitAsDescriptorTable(1, &uavTable);

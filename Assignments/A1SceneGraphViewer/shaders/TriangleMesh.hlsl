@@ -132,6 +132,7 @@ struct RootConstants
     float4 backgroundColor;
     int width;
     int height;
+    int finalRTV;
 };
 ConstantBuffer<RootConstants> rootConstants : register(b0);
 
@@ -149,21 +150,28 @@ ConstantBuffer<RootConstants> rootConstants : register(b0);
       return;
     }
 
-    float3 pos            = output[tid.xy].xyz;
-    float3 lightDirection = float3(0.0f, 0.0f, -1.0f);
+    if (rootConstants.finalRTV < 4)
+    {
+      output[tid.xy] = inputColors[rootConstants.finalRTV];
+    }
+    else
+    {
+      float3 pos            = output[tid.xy].xyz;
+      float3 lightDirection = float3(0.0f, 0.0f, -1.0f);
 
-    float3 l = normalize(lightDirection);
-    float3 n = normalize((normals[tid.xy]).xyz);
+      float3 l = normalize(lightDirection);
+      float3 n = normalize((normals[tid.xy]).xyz);
 
-    float3 v = normalize(pos);
-    float3 h = normalize(l + v);
+      float3 v = normalize(pos);
+      float3 h = normalize(l + v);
 
-    float d_nl = dot(n, l);
+      float d_nl = dot(n, l);
 
-    float  f_diffuse = max(0.0f, d_nl);
-    float3 l_diffuse = f_diffuse * albedo[tid.xy].xyz;
+      float  f_diffuse = max(0.0f, d_nl);
+      float3 l_diffuse = f_diffuse * albedo[tid.xy].xyz;
 
-    output[tid.xy] = float4(l_diffuse + output[tid.xy].xyz, 1);
+      output[tid.xy] = float4(l_diffuse + output[tid.xy].xyz, 1);
+    }
   }
 }
 
