@@ -81,8 +81,8 @@ private:
     f32v3 m_backgroundColor = f32v3(0.25f, 0.25f, 0.25f);
     bool  m_showBoundingBox = false;
     
-    ui32        finalRTV = 4;
-    const char* names[5]   = {"Emissive", "Albedo", "Positions", "Normals (absolute)", "Final lighting"};
+    ui32        finalRTV = 5;
+    const char* names[6] = {"Emissive", "Albedo", "Positions", "Normals (absolute)", "Depth", "Final lighting"};
   };
 
   ComPtr<ID3D12PipelineState>      m_pipelineState;
@@ -92,7 +92,9 @@ private:
   ComPtr<ID3D12RootSignature>      m_rootSignature;
   ComPtr<ID3D12RootSignature>      m_computeRootSignature;
   const static int                 numDeferredRTV = 4;
+  const static int                 numDeferredUAV = numDeferredRTV + 1 /*depth*/;     
   ComPtr<ID3D12Resource>           m_rtvTexture[numDeferredRTV];
+  ComPtr<ID3D12Resource>           m_depthTexture;
   DXGI_FORMAT m_rtvFormat[4] = {/*emissive*/ DXGI_FORMAT_R8G8B8A8_UNORM, /*albedo*/ DXGI_FORMAT_R8G8B8A8_UNORM,
                                /*positions*/ DXGI_FORMAT_R32G32B32A32_FLOAT, /*normals*/ DXGI_FORMAT_R32G32B32A32_FLOAT};
 
@@ -100,8 +102,8 @@ private:
   ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
   ComPtr<ID3D12DescriptorHeap> m_rtvDescriptorHeap;
 
-  CD3DX12_CPU_DESCRIPTOR_HANDLE m_offscreenTarget_CPU_UAV[numDeferredRTV];
-  CD3DX12_GPU_DESCRIPTOR_HANDLE m_offscreenTarget_GPU_UAV[numDeferredRTV];
+  CD3DX12_CPU_DESCRIPTOR_HANDLE m_offscreenTarget_CPU_UAV[numDeferredUAV];
+  CD3DX12_GPU_DESCRIPTOR_HANDLE m_offscreenTarget_GPU_UAV[numDeferredUAV];
 
   CD3DX12_CPU_DESCRIPTOR_HANDLE m_offscreenTarget_CPU_RTV[numDeferredRTV];
   CD3DX12_GPU_DESCRIPTOR_HANDLE m_offscreenTarget_GPU_RTV[numDeferredRTV];

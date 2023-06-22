@@ -298,7 +298,7 @@ const ComPtr<ID3D12Resource>& DX12App::getRenderTarget() const
 
 const ComPtr<ID3D12Resource>& DX12App::getDepthStencil() const
 {
-  return m_swapChainAdapter->getRenderTarget();
+  return m_swapChainAdapter->getDepthStencil();
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE DX12App::getRTVHandle()
