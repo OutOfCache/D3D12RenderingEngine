@@ -1,3 +1,4 @@
+// Help: https://github.com/shuhuai/DeferredShadingD3D12/blob/master/DeferredRender.cpp
 #include "SceneGraphViewerApp.hpp"
 #include "SceneFactory.hpp"
 #include <gimslib/contrib/d3dx12/d3dx12.h>
@@ -24,6 +25,41 @@ SceneGraphViewerApp::SceneGraphViewerApp(const DX12AppConfig config, const std::
   createSceneConstantBuffer();
   createPipeline();
   createPipelineBoundingBox();
+
+  {
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors             = 4;
+    srvHeapDesc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    throwIfFailed(getDevice()->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
+
+    const auto descSize = getDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    for (ui8 index = 0; index < numDeferredRTV; ++index)
+    {
+      m_offscreenTarget_CPU_UAV[index] =
+          CD3DX12_CPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(), index, descSize);
+      m_offscreenTarget_GPU_UAV[index] =
+          CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), index, descSize);
+    }
+  }
+
+  {
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    rtvHeapDesc.NumDescriptors             = numDeferredRTV;
+    rtvHeapDesc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtvHeapDesc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    throwIfFailed(getDevice()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvDescriptorHeap)));
+
+    const auto descSize = getDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    for (ui8 index = 0; index < numDeferredRTV; ++index)
+    {
+      m_offscreenTarget_CPU_RTV[index] =
+          CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), index, descSize);
+    }
+  }
+
+  createRenderTargetTexture();
 }
 
 void SceneGraphViewerApp::onDraw()
@@ -264,4 +300,69 @@ void SceneGraphViewerApp::updateSceneConstantBuffer()
   cb.projectionMatrix =
       glm::perspectiveFovLH_ZO<f32>(glm::radians(45.0f), (f32)getWidth(), (f32)getHeight(), 1.0f / 256.0f, 256.0f);
   m_constantBuffers[getFrameIndex()].upload(&cb);
+}
+
+void SceneGraphViewerApp::createRenderTargetTexture()
+{
+  D3D12_RESOURCE_DESC tex = {};
+  for (auto& rtv : m_offscreenTargets)
+    rtv.Reset();
+
+  tex.Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  tex.Alignment        = 0;
+  tex.Width            = getWidth();
+  tex.Height           = getHeight();
+  tex.DepthOrArraySize = 1;
+  tex.MipLevels        = 1;
+  tex.SampleDesc.Count      = 1;
+  tex.SampleDesc.Quality    = 0;
+  tex.Layout                = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+  tex.Flags                 = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+  const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+  D3D12_CLEAR_VALUE clearValue = {};
+  f32v4             clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+  clearValue.Color[0] = clearColor.x;
+  clearValue.Color[1] = clearColor.y;
+  clearValue.Color[2] = clearColor.z;
+  clearValue.Color[3] = clearColor.w;
+
+  for (ui8 index = 0; index < numDeferredRTV; ++index)
+  {
+    tex.Format        = m_rtvFormat[index];
+    clearValue.Format = m_rtvFormat[index];
+
+    throwIfFailed(getDevice()->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &tex,
+                                                       D3D12_RESOURCE_STATE_RENDER_TARGET, &clearValue,
+                                                       IID_PPV_ARGS(&m_offscreenTargets[index])));
+  }
+
+  D3D12_UNORDERED_ACCESS_VIEW_DESC unorderAccessViewDesc = {};
+  unorderAccessViewDesc.ViewDimension      = D3D12_UAV_DIMENSION_TEXTURE2D;
+  unorderAccessViewDesc.Texture2D.MipSlice = 0;
+
+  for (ui8 index = 0; index < numDeferredRTV; ++index)
+  {
+    unorderAccessViewDesc.Format = m_rtvFormat[index];
+
+    getDevice()->CreateUnorderedAccessView(m_offscreenTargets[index].Get(), nullptr, &unorderAccessViewDesc,
+                                           m_offscreenTarget_CPU_UAV[index]);
+  }
+
+  D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
+
+  renderTargetViewDesc.ViewDimension      = D3D12_RTV_DIMENSION_TEXTURE2D;
+  renderTargetViewDesc.Texture2D.MipSlice = 0;
+  for (ui8 index = 0; index < numDeferredRTV; ++index)
+  {
+    renderTargetViewDesc.Format = m_rtvFormat[index];
+
+    getDevice()->CreateRenderTargetView(m_offscreenTargets[index].Get(), &renderTargetViewDesc,
+                                        m_offscreenTarget_CPU_RTV[index]);
+  }
+}
+
+void SceneGraphViewerApp::onResize()
+{
+  createRenderTargetTexture();
 }

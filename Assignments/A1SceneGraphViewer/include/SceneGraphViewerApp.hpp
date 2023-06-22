@@ -66,6 +66,10 @@ private:
 
   void updateSceneConstantBuffer();
 
+  void createRenderTargetTexture();
+
+  void onResize();
+
  /* void createMeshConstantBuffer();
 
   void updateMeshConstantBuffer();*/
@@ -81,6 +85,20 @@ private:
   ComPtr<ID3D12RootSignature>      m_rootSignature;
   ComPtr<ID3D12RootSignature>      m_computeRootSignature;
   const static int                 numDeferredRTV = 4;
+  ComPtr<ID3D12Resource>           m_rtvTexture[numDeferredRTV];
+  DXGI_FORMAT m_rtvFormat[4] = {/*emissive*/ DXGI_FORMAT_R8G8B8A8_UNORM, /*albedo*/ DXGI_FORMAT_R8G8B8A8_UNORM,
+                               /*positions*/ DXGI_FORMAT_R32G32B32A32_FLOAT, /*normals*/ DXGI_FORMAT_R32G32B32A32_FLOAT};
+
+  ComPtr<ID3D12Resource>       m_offscreenTargets[numDeferredRTV];
+  ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
+  ComPtr<ID3D12DescriptorHeap> m_rtvDescriptorHeap;
+
+  CD3DX12_CPU_DESCRIPTOR_HANDLE m_offscreenTarget_CPU_UAV[numDeferredRTV];
+  CD3DX12_GPU_DESCRIPTOR_HANDLE m_offscreenTarget_GPU_UAV[numDeferredRTV];
+
+  CD3DX12_CPU_DESCRIPTOR_HANDLE m_offscreenTarget_CPU_RTV[numDeferredRTV];
+  CD3DX12_GPU_DESCRIPTOR_HANDLE m_offscreenTarget_GPU_RTV[numDeferredRTV];
+
   std::vector<ConstantBufferD3D12> m_constantBuffers;
   std::vector<ConstantBufferD3D12> m_constantBuffers_Mesh;
   gims::ExaminerController         m_examinerController;
