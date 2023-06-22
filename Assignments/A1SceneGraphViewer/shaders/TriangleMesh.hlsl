@@ -126,6 +126,7 @@ RWTexture2D<float4> output : register(u0);
 RWTexture2D<float4> albedo : register(u1);
 RWTexture2D<float4> positions : register(u2);
 RWTexture2D<float4> normals : register(u3);
+RWTexture2D<float>  depth : register(u4);
 
 struct RootConstants
 {
@@ -139,18 +140,18 @@ ConstantBuffer<RootConstants> rootConstants : register(b0);
 [numthreads(16, 16, 1)] void CS_lighting(int3 tid
                                          : SV_DispatchThreadID)
 {
-  float4 inputColors[4] = {output[tid.xy], albedo[tid.xy], positions[tid.xy] + float4(0.5f, 0.5f, 0, 0),
-                           abs(normalize(normals[tid.xy]))};
+  float4 inputColors[5] = {output[tid.xy], albedo[tid.xy], positions[tid.xy] + float4(0.5f, 0.5f, 0, 0),
+                           abs(normalize(normals[tid.xy])), float4(0, 0, (depth[tid.xy] - 0.99f) * 100, 1)};
 
   if (tid.x < rootConstants.width && tid.y < rootConstants.height)
   {
-    if (normals[tid.xy].w != 0)
+    if (depth[tid.xy] == 1)
     {
       output[tid.xy] = rootConstants.backgroundColor;
       return;
     }
 
-    if (rootConstants.finalRTV < 4)
+    if (rootConstants.finalRTV < 5)
     {
       output[tid.xy] = inputColors[rootConstants.finalRTV];
     }

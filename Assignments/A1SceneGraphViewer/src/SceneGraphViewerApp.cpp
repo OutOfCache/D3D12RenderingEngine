@@ -33,14 +33,14 @@ SceneGraphViewerApp::SceneGraphViewerApp(const DX12AppConfig config, const std::
 
   {
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors             = 4;
+    srvHeapDesc.NumDescriptors             = 5;
     srvHeapDesc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     throwIfFailed(getDevice()->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
 
     const auto descSize = getDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    for (ui8 index = 0; index < numDeferredRTV; ++index)
+    for (ui8 index = 0; index < numDeferredUAV; ++index)
     {
       m_offscreenTarget_CPU_UAV[index] =
           CD3DX12_CPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(), index, descSize);
@@ -111,11 +111,22 @@ void SceneGraphViewerApp::onDraw()
   }
 
   // Resolve Pass
+  {
+    CD3DX12_RESOURCE_BARRIER toCopySource[] = {CD3DX12_RESOURCE_BARRIER::Transition(
+        getDepthStencil().Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE)};
+
+    commandList->ResourceBarrier(_countof(toCopySource), toCopySource);
+  }
+  commandList->CopyResource(m_depthTexture.Get(), getDepthStencil().Get());
+
   const auto& outputRTV = m_offscreenTargets[0];
   {
-    CD3DX12_RESOURCE_BARRIER toUAV = CD3DX12_RESOURCE_BARRIER::Transition(
-        outputRTV.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    commandList->ResourceBarrier(1, &toUAV);
+    CD3DX12_RESOURCE_BARRIER toUAV[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(outputRTV.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                             D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_depthTexture.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                                             D3D12_RESOURCE_STATE_UNORDERED_ACCESS)};
+    commandList->ResourceBarrier(_countof(toUAV), toUAV);
   }
 
   commandList->SetPipelineState(m_computePipelineState.Get());
@@ -147,15 +158,18 @@ void SceneGraphViewerApp::onDraw()
 
   commandList->CopyResource(getRenderTarget().Get(), outputRTV.Get());
   {
-    CD3DX12_RESOURCE_BARRIER toRenderTarget[] = {
+    CD3DX12_RESOURCE_BARRIER barriers[] = {
         CD3DX12_RESOURCE_BARRIER::Transition(outputRTV.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
                                              D3D12_RESOURCE_STATE_RENDER_TARGET),
         CD3DX12_RESOURCE_BARRIER::Transition(getRenderTarget().Get(), D3D12_RESOURCE_STATE_COPY_DEST,
                                              D3D12_RESOURCE_STATE_RENDER_TARGET),
-    };
-
-    commandList->ResourceBarrier(_countof(toRenderTarget), toRenderTarget);
-  }
+        CD3DX12_RESOURCE_BARRIER::Transition(getDepthStencil().Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+                                             D3D12_RESOURCE_STATE_DEPTH_WRITE),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_depthTexture.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                             D3D12_RESOURCE_STATE_COPY_DEST)
+      };
+      commandList->ResourceBarrier(_countof(barriers), barriers);
+    }
 
   commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
@@ -223,7 +237,7 @@ void SceneGraphViewerApp::createComputeRootSignature()
 
   parameter[1].InitAsConstants(7, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
   CD3DX12_DESCRIPTOR_RANGE uavTable;
-  uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, numDeferredRTV, 0);
+  uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, numDeferredUAV, 0);
   parameter[0].InitAsDescriptorTable(1, &uavTable);
 
   CD3DX12_ROOT_SIGNATURE_DESC descRootSignature;
@@ -418,6 +432,14 @@ void SceneGraphViewerApp::createRenderTargetTexture()
                                                        IID_PPV_ARGS(&m_offscreenTargets[index])));
   }
 
+  tex.Format    = getDX12AppConfig().depthBufferFormat;
+  tex.Flags     = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  tex.MipLevels = 10;
+
+  throwIfFailed(getDevice()->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &tex,
+                                                     D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                     IID_PPV_ARGS(&m_depthTexture)));
+
   D3D12_UNORDERED_ACCESS_VIEW_DESC unorderAccessViewDesc = {};
   unorderAccessViewDesc.ViewDimension      = D3D12_UAV_DIMENSION_TEXTURE2D;
   unorderAccessViewDesc.Texture2D.MipSlice = 0;
@@ -429,6 +451,10 @@ void SceneGraphViewerApp::createRenderTargetTexture()
     getDevice()->CreateUnorderedAccessView(m_offscreenTargets[index].Get(), nullptr, &unorderAccessViewDesc,
                                            m_offscreenTarget_CPU_UAV[index]);
   }
+
+  unorderAccessViewDesc.Format = DXGI_FORMAT_R32_FLOAT;
+  getDevice()->CreateUnorderedAccessView(m_depthTexture.Get(), nullptr, &unorderAccessViewDesc,
+                                         m_offscreenTarget_CPU_UAV[numDeferredRTV]);
 
   D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
 
