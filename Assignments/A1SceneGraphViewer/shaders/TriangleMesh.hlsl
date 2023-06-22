@@ -78,16 +78,93 @@ float4 PS_main(VertexShaderOutput input)
         discard;
     }
     
-    // float3 textureColor = float3(1.0f, 1.0f, 1.0f);
 
-    return float4(ambientColor.xyz * textureColorAmbient.xyz + textureColorEmissive.xyz +
-    /*textureColorHeight +*//*f_diffuse **/textureColorDiffuse.xyz * diffuseColor.xyz +
+    return float4(ambientColor.xyz * textureColorAmbient.xyz + textureColorEmissive.xyz + textureColorDiffuse.xyz * diffuseColor.xyz +
                       f_specular * textureColorSpecular * specularColorAndExponent.xyz, 1);
     
-    //return float4(textureColorHeight, 1);
+}
+
+struct DeferredOutput
+{
+    float4 emissive : SV_TARGET0;
+    float4 albedo   : SV_TARGET1;
+    float4 position : SV_TARGET2;
+    float4 normal   : SV_TARGET3;
+};
+
+DeferredOutput PS_deferred(VertexShaderOutput input)
+    : SV_TARGET
+{
+    DeferredOutput output;
+
+    float3 l = normalize(float3(-1.0f, 0.0f, 0.0f));
+    float3 n = normalize(input.viewSpaceNormal);
+
+    float3 v = normalize(-input.viewSpacePosition);
+    float3 h = normalize(l + v);
+
+    float f_specular = pow(max(0.0f, dot(n, h)), specularColorAndExponent.w);
+
+    float3 textureColorAmbient  = g_textureAmbient.Sample(g_sampler, input.texCoord, 0);
+    float4 textureColorDiffuse  = g_textureDiffuse.Sample(g_sampler, input.texCoord, 0);
+    float3 textureColorSpecular = g_textureSpecular.Sample(g_sampler, input.texCoord, 0);
+    float3 textureColorEmissive = g_textureEmissive.Sample(g_sampler, input.texCoord, 0);
+
+    if (textureColorDiffuse.w == 0)
+    {
+        discard;
+    }
+
+    output.position = float4(input.viewSpacePosition, 1);
+    output.normal   = float4(input.viewSpaceNormal, 0);
+    output.albedo   = float4(textureColorDiffuse.xyz * diffuseColor.xyz, 1);
+    output.emissive = float4(textureColorEmissive, 1);
     
- /*   return float4(textureColorSpecular, 1.0f);*/ /*diffuseColor;*/ /*float4(input.texCoord.x, input.texCoord.y, 0.0f, 1.0f);*/
-   // return float4(textureColorEmissive, 1);
+    return output;
+}
+
+RWTexture2D<float4> output : register(u0);
+RWTexture2D<float4> albedo : register(u1);
+RWTexture2D<float4> positions : register(u2);
+RWTexture2D<float4> normals : register(u3);
+
+struct RootConstants
+{
+    int width;
+    int height;
+};
+ConstantBuffer<RootConstants> rootConstants : register(b0);
+
+[numthreads(16, 16, 1)] void CS_lighting(int3 tid
+                                         : SV_DispatchThreadID)
+{
+  float4 inputColors[4] = {output[tid.xy], albedo[tid.xy], positions[tid.xy] + float4(0.5f, 0.5f, 0, 0),
+                           abs(normalize(normals[tid.xy]))};
+
+  if (tid.x < rootConstants.width && tid.y < rootConstants.height)
+  {
+    if (normals[tid.xy].w != 0)
+    {
+      output[tid.xy] = float4(0.25f, 0.25f, 0.25f, 1);
+      return;
+    }
+
+    float3 pos            = output[tid.xy].xyz;
+    float3 lightDirection = float3(0.0f, 0.0f, -1.0f);
+
+    float3 l = normalize(lightDirection);
+    float3 n = normalize((normals[tid.xy]).xyz);
+
+    float3 v = normalize(pos);
+    float3 h = normalize(l + v);
+
+    float d_nl = dot(n, l);
+
+    float  f_diffuse = max(0.0f, d_nl);
+    float3 l_diffuse = f_diffuse * albedo[tid.xy].xyz;
+
+    output[tid.xy] = float4(l_diffuse + output[tid.xy].xyz, 1);
+  }
 }
 
 struct VertexShaderOutput_BoundingBox
