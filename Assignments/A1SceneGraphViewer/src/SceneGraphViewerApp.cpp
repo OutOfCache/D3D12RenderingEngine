@@ -434,7 +434,7 @@ void SceneGraphViewerApp::createRenderTargetTexture()
 
   tex.Format    = getDX12AppConfig().depthBufferFormat;
   tex.Flags     = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-  tex.MipLevels = 10;
+  tex.MipLevels = std::ceil(std::log2(std::max(getWidth(), getHeight())));
 
   throwIfFailed(getDevice()->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &tex,
                                                      D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
