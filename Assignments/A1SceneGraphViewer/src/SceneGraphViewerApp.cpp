@@ -138,9 +138,21 @@ void SceneGraphViewerApp::onDraw()
   commandList->SetComputeRoot32BitConstants(1, 4, &backgroundColor, offset);
   offset += 4;
 
+  const auto projection =
+      glm::perspectiveFovLH_ZO<f32>(glm::radians(45.0f), (f32)getWidth(), (f32)getHeight(), 1.0f / 256.0f, 256.0f);
+
+  const auto projectionInv = glm::inverse(projection);
+  commandList->SetComputeRoot32BitConstants(1, 16, &projectionInv, offset);
+  offset += projectionInv.length() * projectionInv[0].length();
+
+  const f32v4 projValues = { projection[3][2], projection[2][3], projection[2][2], 1.0f };
+  commandList->SetComputeRoot32BitConstants(1, 4, &projValues, offset);
+  offset += projValues.length();
+
   commandList->SetComputeRoot32BitConstant(1, getWidth(), offset++);
   commandList->SetComputeRoot32BitConstant(1, getHeight(), offset++);
   commandList->SetComputeRoot32BitConstant(1, m_uiData.finalRTV, offset++);
+  commandList->SetComputeRoot32BitConstant(1, _countof(m_uiData.names), offset++);
 
   const ui32v3 threadGroupSize(16, 16, 1);
   commandList->Dispatch(ui32(ceilf(getWidth() / f32(threadGroupSize.x))),
@@ -235,11 +247,10 @@ void SceneGraphViewerApp::createComputeRootSignature()
 {
   CD3DX12_ROOT_PARAMETER parameter[2] = {};
 
-  parameter[1].InitAsConstants(7, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
+  parameter[1].InitAsConstants(28, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
   CD3DX12_DESCRIPTOR_RANGE uavTable;
   uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, numDeferredUAV, 0);
   parameter[0].InitAsDescriptorTable(1, &uavTable);
-
   CD3DX12_ROOT_SIGNATURE_DESC descRootSignature;
   descRootSignature.Init(_countof(parameter), parameter, 0, nullptr,
                          D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
