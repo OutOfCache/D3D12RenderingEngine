@@ -104,6 +104,12 @@ void SceneGraphViewerApp::onDraw()
 
   drawScene(commandList);
 
+  // now draw bounding box
+  if (m_uiData.m_showBoundingBox)
+  {
+    drawSceneBoundingBox(commandList);
+  }
+
   // Resolve Pass
   const auto& outputRTV = m_offscreenTargets[0];
   {
@@ -148,11 +154,6 @@ void SceneGraphViewerApp::onDraw()
 
   commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-  // now draw bounding box
-  if (m_uiData.m_showBoundingBox)
-  {
-    drawSceneBoundingBox(commandList);
-  }
 }
 
 void SceneGraphViewerApp::onDrawUI()
