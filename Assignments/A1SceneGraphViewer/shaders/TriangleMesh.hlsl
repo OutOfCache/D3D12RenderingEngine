@@ -131,17 +131,39 @@ RWTexture2D<float>  depth : register(u4);
 struct RootConstants
 {
     float4 backgroundColor;
+    float4x4 projInv;
+    float4 projVals;
     int width;
     int height;
     int finalRTV;
+    int totalRTV;
 };
 ConstantBuffer<RootConstants> rootConstants : register(b0);
 
 [numthreads(16, 16, 1)] void CS_lighting(int3 tid
                                          : SV_DispatchThreadID)
 {
-  float4 inputColors[5] = {output[tid.xy], albedo[tid.xy], positions[tid.xy] + float4(0.5f, 0.5f, 0, 0),
-                           abs(normalize(normals[tid.xy])), float4(0, 0, (depth[tid.xy] - 0.99f) * 100, 1)};
+  int    w   = rootConstants.width;
+  int    h   = rootConstants.height;
+  float  z   = ((2.0f * depth[tid.xy] - 1 - 0.99f) / 0.01f);
+  float4 ndcPos;
+  ndcPos.xy = tid.xy;
+  ndcPos.x  = 2.0f * ndcPos.x / w - 1.0f;
+  ndcPos.y  = 2.0f * (h - ndcPos.y) / h - 1.0f;
+  ndcPos.z  = z;
+  ndcPos.w  = 1.0;
+
+  float4   clipPos;
+  float3 proj = rootConstants.projVals.xyz;
+  clipPos.w                    = proj.x;
+  clipPos.w /= (ndcPos.z - (proj.y / proj.z));
+  clipPos.xyz = ndcPos.xyz * clipPos.w;
+  float4 eye  = mul(rootConstants.projInv, clipPos);
+  eye *= 255;
+
+  float4 inputColors[6] = {
+      output[tid.xy], albedo[tid.xy], positions[tid.xy],
+      abs(normalize(normals[tid.xy])), float4(0, 0, z, 1), eye};
 
   if (tid.x < rootConstants.width && tid.y < rootConstants.height)
   {
@@ -151,14 +173,14 @@ ConstantBuffer<RootConstants> rootConstants : register(b0);
       return;
     }
 
-    if (rootConstants.finalRTV < 5)
+    if (rootConstants.finalRTV < rootConstants.totalRTV - 2)
     {
       output[tid.xy] = inputColors[rootConstants.finalRTV];
     }
     else
     {
-      float3 pos            = output[tid.xy].xyz;
-      float3 lightDirection = float3(0.0f, 0.0f, -1.0f);
+      float3 pos = (rootConstants.finalRTV == (rootConstants.totalRTV - 2)) ? positions[tid.xy].xyz : eye.xyz;
+      float3 lightDirection = float3(0.0f, 1.0f, -1.0f);
 
       float3 l = normalize(lightDirection);
       float3 n = normalize((normals[tid.xy]).xyz);
