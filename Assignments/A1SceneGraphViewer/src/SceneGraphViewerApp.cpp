@@ -303,7 +303,6 @@ void SceneGraphViewerApp::createPipeline()
   psoDesc.RTVFormats[0]    = m_rtvFormat[0];
   psoDesc.RTVFormats[1]    = m_rtvFormat[1];
   psoDesc.RTVFormats[2]    = m_rtvFormat[2];
-  psoDesc.RTVFormats[3]    = m_rtvFormat[3];
   psoDesc.SampleDesc.Count = 1;
   throwIfFailed(getDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_deferredPipelineState)));
 }
