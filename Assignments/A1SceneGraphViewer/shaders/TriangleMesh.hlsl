@@ -87,8 +87,7 @@ struct DeferredOutput
 {
     float4 emissive : SV_TARGET0;
     float4 albedo   : SV_TARGET1;
-    float4 position : SV_TARGET2;
-    float4 normal   : SV_TARGET3;
+    float4 normal   : SV_TARGET2;
 };
 
 DeferredOutput PS_deferred(VertexShaderOutput input)
@@ -114,7 +113,6 @@ DeferredOutput PS_deferred(VertexShaderOutput input)
     discard;
   }
 
-    output.position = float4(input.viewSpacePosition, 1);
     output.normal   = float4(input.viewSpaceNormal, 0);
     output.albedo   = float4(textureColorDiffuse.xyz * diffuseColor.xyz, 1);
     output.emissive = float4(textureColorEmissive, 1);
@@ -124,9 +122,8 @@ DeferredOutput PS_deferred(VertexShaderOutput input)
 
 RWTexture2D<float4> output : register(u0);
 RWTexture2D<float4> albedo : register(u1);
-RWTexture2D<float4> positions : register(u2);
-RWTexture2D<float4> normals : register(u3);
-RWTexture2D<float>  depth : register(u4);
+RWTexture2D<float4> normals : register(u2);
+RWTexture2D<float>  depth : register(u3);
 
 struct RootConstants
 {
@@ -161,8 +158,8 @@ ConstantBuffer<RootConstants> rootConstants : register(b0);
   float4 eye  = mul(rootConstants.projInv, clipPos);
   eye *= 255;
 
-  float4 inputColors[6] = {
-      output[tid.xy], albedo[tid.xy], positions[tid.xy],
+  float4 inputColors[5] = {
+      output[tid.xy], albedo[tid.xy],
       abs(normalize(normals[tid.xy])), float4(0, 0, z, 1), eye};
 
   if (tid.x < rootConstants.width && tid.y < rootConstants.height)
@@ -173,13 +170,13 @@ ConstantBuffer<RootConstants> rootConstants : register(b0);
       return;
     }
 
-    if (rootConstants.finalRTV < rootConstants.totalRTV - 2)
+    if (rootConstants.finalRTV < rootConstants.totalRTV - 1)
     {
       output[tid.xy] = inputColors[rootConstants.finalRTV];
     }
     else
     {
-      float3 pos = (rootConstants.finalRTV == (rootConstants.totalRTV - 2)) ? positions[tid.xy].xyz : eye.xyz;
+      float3 pos = eye.xyz;
       float3 lightDirection = float3(0.0f, 1.0f, -1.0f);
 
       float3 l = normalize(lightDirection);

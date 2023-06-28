@@ -81,9 +81,9 @@ private:
     f32v3 m_backgroundColor = f32v3(0.25f, 0.25f, 0.25f);
     bool  m_showBoundingBox = false;
     
-    ui32        finalRTV = 6;
-    const char* names[8] = {"Emissive", "Albedo", "Positions (VS)", "Normals (absolute)", "Depth",
-                            "Eye Pos (restored)", "Final lighting (pos texture)",  "Final lighting (restored pos)"};
+    ui32        finalRTV = 5;
+    const char* names[6] = {"Emissive", "Albedo", "Normals (absolute)", "Depth",
+                            "Eye Pos (restored)", "Final lighting (restored pos)"};
   };
 
   ComPtr<ID3D12PipelineState>      m_pipelineState;
@@ -92,12 +92,11 @@ private:
   ComPtr<ID3D12PipelineState>      m_pipelineStateBoundingBox;
   ComPtr<ID3D12RootSignature>      m_rootSignature;
   ComPtr<ID3D12RootSignature>      m_computeRootSignature;
-  const static int                 numDeferredRTV = 4;
+  const static int                 numDeferredRTV = 3;
   const static int                 numDeferredUAV = numDeferredRTV + 1 /*depth*/;     
   ComPtr<ID3D12Resource>           m_rtvTexture[numDeferredRTV];
   ComPtr<ID3D12Resource>           m_depthTexture;
-  DXGI_FORMAT m_rtvFormat[4] = {/*emissive*/ DXGI_FORMAT_R8G8B8A8_UNORM, /*albedo*/ DXGI_FORMAT_R8G8B8A8_UNORM,
-                                /*positions*/ DXGI_FORMAT_R32G32B32A32_FLOAT, /*normals*/ DXGI_FORMAT_R32G32B32A32_FLOAT};
+  DXGI_FORMAT m_rtvFormat[3] = {/*emissive*/ DXGI_FORMAT_R8G8B8A8_UNORM, /*albedo*/ DXGI_FORMAT_R8G8B8A8_UNORM, /*normals*/ DXGI_FORMAT_R32G32B32A32_FLOAT};
 
   ComPtr<ID3D12Resource>       m_offscreenTargets[numDeferredRTV];
   ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
