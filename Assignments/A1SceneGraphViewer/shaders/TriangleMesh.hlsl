@@ -129,6 +129,7 @@ RWTexture2D<float4> normals : register(u3);
 
 struct RootConstants
 {
+    float4 backgroundColor;
     int width;
     int height;
 };
@@ -144,7 +145,7 @@ ConstantBuffer<RootConstants> rootConstants : register(b0);
   {
     if (normals[tid.xy].w != 0)
     {
-      output[tid.xy] = float4(0.25f, 0.25f, 0.25f, 1);
+      output[tid.xy] = rootConstants.backgroundColor;
       return;
     }
 

@@ -122,9 +122,13 @@ void SceneGraphViewerApp::onDraw()
   commandList->SetComputeRootSignature(m_computeRootSignature.Get());
   commandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
   commandList->SetComputeRootDescriptorTable(0, m_offscreenTarget_GPU_UAV[0]);
+  ui32 offset = 0;
+  const f32v4 backgroundColor = f32v4(m_uiData.m_backgroundColor, 1.0f);
+  commandList->SetComputeRoot32BitConstants(1, 4, &backgroundColor, offset);
+  offset += 4;
 
-  commandList->SetComputeRoot32BitConstant(1, getWidth(), 0);
-  commandList->SetComputeRoot32BitConstant(1, getHeight(), 1);
+  commandList->SetComputeRoot32BitConstant(1, getWidth(), offset++);
+  commandList->SetComputeRoot32BitConstant(1, getHeight(), offset++);
 
   const ui32v3 threadGroupSize(16, 16, 1);
   commandList->Dispatch(ui32(ceilf(getWidth() / f32(threadGroupSize.x))),
@@ -214,7 +218,7 @@ void SceneGraphViewerApp::createComputeRootSignature()
 {
   CD3DX12_ROOT_PARAMETER parameter[2] = {};
 
-  parameter[1].InitAsConstants(3, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
+  parameter[1].InitAsConstants(6, 0, 0, D3D12_SHADER_VISIBILITY_ALL);
   CD3DX12_DESCRIPTOR_RANGE uavTable;
   uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, numDeferredRTV, 0);
   parameter[0].InitAsDescriptorTable(1, &uavTable);
